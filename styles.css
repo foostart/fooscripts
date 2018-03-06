@@ -1,0 +1,17 @@
+body {
+}
+.container {
+    width: 1180px;
+    margin: 0 auto;
+}
+h1 {
+    text-align: center;
+}
+.hint-text {
+    color: darkgrey;
+    font-style: italic;
+}
+
+#block_id {
+        width: 500px;
+}
