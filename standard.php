@@ -257,8 +257,10 @@ class standard {
     }
 
     /**
-     * Check HTML/CSS
-     * Return list of residual css
+     * Check CSS class using in HTML page but No define in CSS file
+     * @param STRING $url is url of block
+     * @return ARRAY list of residual CSS
+     * @date 7/3/2018
      */
     public function checkHtmlCss($url){
             $remove_classes = [];
@@ -267,15 +269,24 @@ class standard {
             if (!empty($page_content)) {
 
                 $patterns = [
+                    //get list of class name are using in HTML page
                     'class' => '/class="(.*?)"/',
+                    //get list of CSS files
                     'link_css' => '/<link.*?href=[\'\"](.*?)[\'\"].*rel="stylesheet".*?>/',
                 ];
 
                 //get list of css contents
                 $css_contents = [];
                 preg_match_all($patterns['link_css'], $page_content, $_csses);
+
                 if (!empty($_csses[1])) {
                     foreach ($_csses[1] as $_css) {
+                        $url_css = file_get_contents($_css);
+                        if (empty($url_css)) {
+                            echo 'Không tìm thấy file css';
+                            var_dump($_css);
+                            die();
+                        }
                         $css_contents[] = file_get_contents($_css);
                     }
                 }
@@ -295,6 +306,8 @@ class standard {
                             $sub_classes = explode(' ', $class);
 
                             foreach ($sub_classes as $item) {
+
+                                //each CSS class checking in all CSS files
                                 if (!empty($item)) {
                                     $flag = FALSE;
                                     if (!empty($css_contents)) {
@@ -315,7 +328,155 @@ class standard {
                 }
             }
             return $remove_classes;
+    }
 
+    /**
+     * Check defined CSS name in CSS file but not using in HTML page
+     * Current just check only custom CSS file
+     * Not check bootstrap and font-awesome
+     * @param STRING $url block page
+     * @return ARRAY list of residual CSS
+     */
+    public function checkCssHtml($url) {
+        $remove_classes = [];
+        $page_content = file_get_contents($url);
+
+        if (!empty($page_content)) {
+
+            $patterns = [
+                //get list of class name are using in HTML page
+                'class' => '/class="(.*?)"/',
+                //get list of CSS files
+                'link_css' => '/<link.*?href=[\'\"](.*?)[\'\"].*rel="stylesheet".*?>/',
+            ];
+
+            //get list of css contents
+            $css_contents = [];
+            preg_match_all($patterns['link_css'], $page_content, $_csses);
+
+            if (!empty($_csses[1])) {
+                foreach ($_csses[1] as $_css) {
+                    $url_css = file_get_contents($_css);
+                    if (empty($url_css)) {
+                        echo 'Không tìm thấy file css';
+                        var_dump($_css);
+                        die();
+                    }
+                    $css_contents[] = file_get_contents($_css);
+                }
+            }
+
+            //get list of using csses in page
+            $css_using = [];
+            preg_match_all($patterns['class'], $page_content, $_classes);
+            if (!empty($_classes[1])) {
+
+                $_classes = $_classes[1];
+
+                foreach ($_classes as $key => $_class) {
+
+                    $_class = trim($_class);
+
+                    if (!empty($_class)) {
+
+                        $_sub_classes = explode(' ', $_class);
+
+                        foreach ($_sub_classes as $item) {
+
+                            //each CSS class checking in all CSS files
+                            if (!empty($item)) {
+                                $item = trim($item);
+                                $css_using[] = $item;
+                            }
+                        }
+                    }
+                }
+            }//end if css_using
+
+            /**
+             * get list of defined CSS class
+             */
+            $css_define = [];
+            $css_files = [];
+            //get list of necessary CSS file
+            if (!empty($_csses[1])) {
+
+                $not_check_css_files = ['bootstrap', 'font-awesome'];
+
+                if (!empty($not_check_css_files)) {
+                    foreach ($_csses[1] as $_css_file) {
+
+                        $flag = TRUE;
+                        foreach ($not_check_css_files as $no_using) {
+
+                            if (strpos($_css_file, $no_using)) {
+                                $flag = FALSE;
+                            }
+                        }
+                        if ($flag) {
+                            $css_files[] = $_css_file;
+                        }
+                    }
+                }
+
+            }
+            //get list of defined in CSS files
+            if (!empty($css_files)) {
+                $patterns = array_merge($patterns, array(
+                    'defined' => '/(\..*?){/',
+                ));
+                foreach ($css_files as $_css_file) {
+                    $css_content = file_get_contents($_css_file);
+                    preg_match_all($patterns['defined'], $css_content, $_defined_css);
+
+                    if (!empty($_defined_css[1])) {
+                        foreach ($_defined_css[1] as $_d_c) {
+                            $_d_c = trim($_d_c);
+
+                            $sub_classes = explode(' ', $_d_c);
+
+                            if (!empty($sub_classes)) {
+                                foreach ($sub_classes as $_item) {
+                                    $_item = trim($_item);
+                                    if (!empty($_item)) {
+                                        if (!in_array($_item, $css_define)) {
+                                            $css_define[] = $_item;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }//end if defined css
+
+            if (!empty($css_define) && !empty($css_using)) {
+                $patterns = array_merge($patterns, array(
+                    'class_name' => '/^\./',
+                    'tag_name' => '/^[a..z]/',
+                    'id_name' => '/^#/',
+                    'atr' => '/:.*/'
+                ));
+                foreach ($css_define as $_item) {
+                    //remove hover
+                    $_item = preg_replace($patterns['atr'], '', $_item);
+                    //class name
+                    $preg = preg_match($patterns['class_name'], $_item);
+                    if ($preg) {
+                        $_item = substr($_item, 1);
+                        if (!in_array($_item, $css_using)) {
+                            $remove_classes[] = $_item;
+                        }
+                    }
+
+                    //html tag name
+
+                    //id name
+                }
+            }
+        }//end if empty page_content
+
+        return $remove_classes;
     }
 
 }
